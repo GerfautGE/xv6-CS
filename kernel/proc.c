@@ -253,10 +253,14 @@ void
 userinit(void)
 {
   struct proc *p;
+  acquire(&prio_lock);
 
   p = allocproc();
   initproc = p;
-  
+
+  insert_into_prio_queue(p);
+  release(&prio_lock);
+
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
@@ -303,6 +307,8 @@ fork(void)
   struct proc *np;
   struct proc *p = myproc();
 
+  acquire(&prio_lock);
+
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
@@ -333,8 +339,11 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
   np->cmd = strdup(p->cmd);
   pid = np->pid;
-
+  np->priority=p->priority;
   np->state = RUNNABLE;
+
+  insert_into_prio_queue(np);
+  release(&prio_lock);
 
   release(&np->lock);
 
@@ -413,6 +422,7 @@ exit(int status)
   
   // we need the parent's lock in order to wake it up from wait().
   // the parent-then-child rule says we have to lock it first.
+  acquire(&prio_lock);
   acquire(&original_parent->lock);
 
   acquire(&p->lock);
@@ -427,6 +437,10 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&original_parent->lock);
+
+
+  remove_from_prio_queue(p);
+  release(&prio_lock);
 
   // Jump into the scheduler, never to return.
   sched();
