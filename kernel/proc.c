@@ -425,7 +425,8 @@ exit(int status)
   
   // we need the parent's lock in order to wake it up from wait().
   // the parent-then-child rule says we have to lock it first.
-  acquire(&prio_lock[p->priority]);
+  int priority = p->priority;
+  acquire(&prio_lock[priority]);
   acquire(&original_parent->lock);
 
   acquire(&p->lock);
@@ -443,7 +444,7 @@ exit(int status)
 
 
   remove_from_prio_queue(p);
-  release(&prio_lock[p->priority]);
+  release(&prio_lock[priority]);
 
   // Jump into the scheduler, never to return.
   sched();
@@ -507,27 +508,20 @@ wait(uint64 addr)
 
 struct proc* pick_highest_priority_runnable_proc(){
   struct proc* p;
-  for (int priority=0; priority < NPRIO; priority++){
+  for (int priority=0; priority < NPRIO; priority++)
+  {
     acquire(&prio_lock[priority]);
-  }
-  for (int priority=0; priority < NPRIO; priority++){
     struct list_proc * lst_p = prio[priority];
     while (lst_p)
     {
       p = lst_p->p;
       acquire(&p->lock);
       if(p->state == RUNNABLE){
-        for(int priority=0; priority < NPRIO; priority++)
-        {
-          if(priority!= p->priority) release(&prio_lock[priority]);
-        }
         return p;
       }
       release(&p->lock);
       lst_p = lst_p->next;
     }
-  }
-  for (int priority=0; priority < NPRIO; priority++){
     release(&prio_lock[priority]);
   }
   return 0;
@@ -580,23 +574,38 @@ scheduler(void)
 int
 nice(int pid, int priority) 
 {
-  struct proc* p;
-  for (int pr=0; pr < NPROC; pr++)
+  struct proc * p;
+  for(int idx_prio=0; idx_prio < NPRIO; idx_prio++)
   {
-    p = &proc[pr];
-    if(p->pid == pid){
-      int prev_prio = p->priority;
-      acquire(&prio_lock[prev_prio]);
-      acquire(&prio_lock[priority]);
-      acquire(&p->lock);
-      remove_from_prio_queue(p);
-      p->priority = priority;
-      insert_into_prio_queue(p);
-      release(&p->lock);
-      release(&prio_lock[prev_prio]);
-      release(&prio_lock[priority]);
-      return 1;
+    //prio_lock own priority
+    if (prio_lock[idx_prio].locked == 1) continue;
+    acquire(&prio_lock[idx_prio]);
+    struct list_proc *lst_prio = prio[idx_prio];
+    while(lst_prio)
+    {
+      p = lst_prio->p;
+      if (p->pid == pid) //we found the process we want to change the priority
+      {
+        //check if priority has changed
+        if (p->priority != idx_prio)
+        {
+          release(&prio_lock[idx_prio]);
+          nice(pid, priority);
+        }
+        if (idx_prio != priority) // we really change priority (avoid nice 1 5) if 1.priority = 5 to crash
+        {
+          remove_from_prio_queue(p);
+          p->priority = priority;
+          acquire(&prio_lock[priority]); //prio_lock target priority
+          insert_into_prio_queue(p);  //insert
+          release(&prio_lock[priority]);
+        }
+        release(&prio_lock[idx_prio]);
+        return 1;
+      }
+      lst_prio = lst_prio->next;
     }
+    release(&prio_lock[idx_prio]);
   }
   return 0;
 }
