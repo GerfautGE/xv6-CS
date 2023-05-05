@@ -15,7 +15,7 @@ struct proc proc[NPROC];
 
 // Priority table $\label{proc.c:lprio}$
 struct list_proc* prio[NPRIO];
-struct spinlock prio_lock;
+struct spinlock prio_lock[NPRIO];
 
 struct proc *initproc;
 
@@ -71,7 +71,10 @@ void
 procinit(void)
 {
   struct proc *p;
-  initlock(&prio_lock, "priolock");
+  for(int priority = 0; priority < NPRIO; priority++)
+  {
+    initlock(&prio_lock[priority], "priolock");
+  }
   for(int i = 0; i < NPRIO; i++){
     prio[i] = 0;
   }
@@ -253,13 +256,13 @@ void
 userinit(void)
 {
   struct proc *p;
-  acquire(&prio_lock);
+  acquire(&prio_lock[DEF_PRIO]);
 
   p = allocproc();
   initproc = p;
 
   insert_into_prio_queue(p);
-  release(&prio_lock);
+  release(&prio_lock[DEF_PRIO]);
 
   // allocate one user page and copy init's instructions
   // and data into it.
@@ -307,7 +310,7 @@ fork(void)
   struct proc *np;
   struct proc *p = myproc();
 
-  acquire(&prio_lock);
+  acquire(&prio_lock[p->priority]);
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -343,7 +346,7 @@ fork(void)
   np->state = RUNNABLE;
 
   insert_into_prio_queue(np);
-  release(&prio_lock);
+  release(&prio_lock[p->priority]);
 
   release(&np->lock);
 
@@ -422,7 +425,7 @@ exit(int status)
   
   // we need the parent's lock in order to wake it up from wait().
   // the parent-then-child rule says we have to lock it first.
-  acquire(&prio_lock);
+  acquire(&prio_lock[p->priority]);
   acquire(&original_parent->lock);
 
   acquire(&p->lock);
@@ -440,7 +443,7 @@ exit(int status)
 
 
   remove_from_prio_queue(p);
-  release(&prio_lock);
+  release(&prio_lock[p->priority]);
 
   // Jump into the scheduler, never to return.
   sched();
@@ -503,8 +506,10 @@ wait(uint64 addr)
 
 
 struct proc* pick_highest_priority_runnable_proc(){
-  acquire(&prio_lock);
   struct proc* p;
+  for (int priority=0; priority < NPRIO; priority++){
+    acquire(&prio_lock[priority]);
+  }
   for (int priority=0; priority < NPRIO; priority++){
     struct list_proc * lst_p = prio[priority];
     while (lst_p)
@@ -512,13 +517,19 @@ struct proc* pick_highest_priority_runnable_proc(){
       p = lst_p->p;
       acquire(&p->lock);
       if(p->state == RUNNABLE){
+        for(int priority=0; priority < NPRIO; priority++)
+        {
+          if(priority!= p->priority) release(&prio_lock[priority]);
+        }
         return p;
       }
       release(&p->lock);
       lst_p = lst_p->next;
     }
   }
-  release(&prio_lock);
+  for (int priority=0; priority < NPRIO; priority++){
+    release(&prio_lock[priority]);
+  }
   return 0;
 }
 
@@ -550,7 +561,7 @@ scheduler(void)
         remove_from_prio_queue(p);
         insert_into_prio_queue(p);
         c->proc = p;
-        release(&prio_lock);
+        release(&prio_lock[p->priority]);
         swtch(&c->scheduler, &p->context);
 
         // Process is done running for now.
@@ -569,25 +580,22 @@ scheduler(void)
 int
 nice(int pid, int priority) 
 {
-  struct list_proc* lst_p;
   struct proc* p;
-  for (int pr=0; pr < NPRIO; pr++)
+  for (int pr=0; pr < NPROC; pr++)
   {
-    lst_p = prio[pr];
-    while(lst_p)
-    {
-      p = lst_p->p;
-      if(p->pid == pid){
-        acquire(&prio_lock);
-        acquire(&p->lock);
-        remove_from_prio_queue(p);
-        p->priority = priority;
-        insert_into_prio_queue(p);
-        release(&p->lock);
-        release(&prio_lock);
-        return 1;
-      }
-      lst_p = lst_p->next;
+    p = &proc[pr];
+    if(p->pid == pid){
+      int prev_prio = p->priority;
+      acquire(&prio_lock[prev_prio]);
+      acquire(&prio_lock[priority]);
+      acquire(&p->lock);
+      remove_from_prio_queue(p);
+      p->priority = priority;
+      insert_into_prio_queue(p);
+      release(&p->lock);
+      release(&prio_lock[prev_prio]);
+      release(&prio_lock[priority]);
+      return 1;
     }
   }
   return 0;
