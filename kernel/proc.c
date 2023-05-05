@@ -569,6 +569,27 @@ scheduler(void)
 int
 nice(int pid, int priority) 
 {
+  struct list_proc* lst_p;
+  struct proc* p;
+  for (int pr=0; pr < NPRIO; pr++)
+  {
+    lst_p = prio[pr];
+    while(lst_p)
+    {
+      p = lst_p->p;
+      if(p->pid == pid){
+        acquire(&prio_lock);
+        acquire(&p->lock);
+        remove_from_prio_queue(p);
+        p->priority = priority;
+        insert_into_prio_queue(p);
+        release(&p->lock);
+        release(&prio_lock);
+        return 1;
+      }
+      lst_p = lst_p->next;
+    }
+  }
   return 0;
 }
 
