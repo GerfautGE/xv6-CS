@@ -566,6 +566,12 @@ scheduler(void)
   }
 }
 
+int
+nice(int pid, int priority) 
+{
+  return 0;
+}
+
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
