@@ -547,6 +547,8 @@ scheduler(void)
     p = pick_highest_priority_runnable_proc();
     if (p != 0) {
         p->state = RUNNING;
+        remove_from_prio_queue(p);
+        insert_into_prio_queue(p);
         c->proc = p;
         release(&prio_lock);
         swtch(&c->scheduler, &p->context);
