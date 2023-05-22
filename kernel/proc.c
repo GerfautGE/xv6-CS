@@ -364,15 +364,20 @@ int growproc(long n) {
   uint64 sz;
   struct proc *p = myproc();
 
+  uint64 old_top = p->heap_vma->va_end;
+  uint64 new_top = old_top + n;
+
+  uint64 va_begin = p->heap_vma->va_begin;
+  if (!(va_begin <= new_top && (new_top-va_begin < HEAP_THRESHOLD)))
+  {
+    return -1;
+  }
+  p->heap_vma->va_end = new_top;
   sz = p->sz;
-  if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
-      return -1;
-    }
-  } else if(n < 0){
+  if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
-  p->sz = sz;
+  p->sz = new_top;
   return 0;
 }
 
