@@ -23,6 +23,11 @@ exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
+  //VMAs to save
+  struct vma* stack_vma = 0;
+  struct vma* heap_vma = 0;
+  struct vma* memory_areas = 0;
+
   begin_op(ROOTDEV);
 
   if((ip = namei(path)) == 0){
@@ -45,6 +50,16 @@ exec(char *path, char **argv)
     goto bad;
   }
 
+  //save VMAs
+  stack_vma = p->stack_vma;
+  heap_vma = p->heap_vma;
+  memory_areas = p->memory_areas;
+
+  //reset VMAs
+  p->memory_areas = 0;
+  p->stack_vma = 0;
+  p->heap_vma = 0;
+
   // Load program into memory.
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
@@ -61,6 +76,7 @@ exec(char *path, char **argv)
       printf("exec: program header vaddr + memsz < vaddr\n");
       goto bad;
     }
+    add_memory_area(p, ph.vaddr, ph.vaddr + ph.memsz);
     if((sz = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0){
       printf("exec: uvmalloc failed\n");
       goto bad;
@@ -146,6 +162,9 @@ exec(char *path, char **argv)
   p->tf->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
+  p->stack_vma =  add_memory_area(p, USTACK_BOTTOM, USTACK_TOP); //stack
+  p->heap_vma =  add_memory_area(p, 0, 0); //heap
+
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
@@ -155,6 +174,9 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op(ROOTDEV);
   }
+  p->memory_areas = memory_areas;
+  p->stack_vma = stack_vma;
+  p->heap_vma = heap_vma;
   return -1;
 }
 

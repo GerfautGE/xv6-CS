@@ -344,6 +344,8 @@ void userinit(void) {
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+  add_memory_area(p, 0, PGSIZE);
+
   // prepare for the very first "return" from kernel to user.
   p->tf->epc = 0;     // user program counter
   p->tf->sp = PGSIZE; // user stack pointer
@@ -393,6 +395,8 @@ int fork(void) {
     return -1;
   }
   np->sz = p->sz;
+
+  vma_copy(np, p);
 
   np->parent = p;
 
