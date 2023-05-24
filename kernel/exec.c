@@ -24,9 +24,9 @@ exec(char *path, char **argv)
   struct proc *p = myproc();
 
   //VMAs to save
-  struct vma* stack_vma = 0;
-  struct vma* heap_vma = 0;
-  struct vma* memory_areas = 0;
+  struct vma* stack_vma = p->stack_vma;
+  struct vma* heap_vma = p->heap_vma;
+  struct vma* memory_areas = p->memory_areas;
 
   begin_op(ROOTDEV);
 
@@ -50,15 +50,12 @@ exec(char *path, char **argv)
     goto bad;
   }
 
-  //save VMAs
-  stack_vma = p->stack_vma;
-  heap_vma = p->heap_vma;
-  memory_areas = p->memory_areas;
-
   //reset VMAs
+  acquire(&p->vma_lock);
   p->memory_areas = 0;
   p->stack_vma = 0;
   p->heap_vma = 0;
+  release(&p->vma_lock);
 
   // Load program into memory.
   sz = 0;
@@ -76,7 +73,6 @@ exec(char *path, char **argv)
       printf("exec: program header vaddr + memsz < vaddr\n");
       goto bad;
     }
-    add_memory_area(p, ph.vaddr, ph.vaddr + ph.memsz);
     if((sz = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0){
       printf("exec: uvmalloc failed\n");
       goto bad;
@@ -85,6 +81,7 @@ exec(char *path, char **argv)
       printf("exec: vaddr not page aligned\n");
       goto bad;
     }
+    add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz));
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0){
       printf("exec: loadseg failed\n");
       goto bad;
@@ -108,6 +105,9 @@ exec(char *path, char **argv)
   sp = sz;
   stackbase = sp - PGSIZE;
 
+  p->stack_vma =  add_memory_area(p, stackbase, sz); //stack
+  p->heap_vma =  add_memory_area(p, sz, sz); //heap
+  
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG){
@@ -162,9 +162,6 @@ exec(char *path, char **argv)
   p->tf->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
-  p->stack_vma =  add_memory_area(p, USTACK_BOTTOM, USTACK_TOP); //stack
-  p->heap_vma =  add_memory_area(p, 0, 0); //heap
-
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
@@ -174,9 +171,11 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op(ROOTDEV);
   }
+  acquire(&p->vma_lock);
   p->memory_areas = memory_areas;
   p->stack_vma = stack_vma;
   p->heap_vma = heap_vma;
+  release(&p->vma_lock);
   return -1;
 }
 
