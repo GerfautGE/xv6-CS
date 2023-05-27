@@ -81,7 +81,7 @@ exec(char *path, char **argv)
       printf("exec: vaddr not page aligned\n");
       goto bad;
     }
-    add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz));
+    add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz))->vma_flags = VMA_R | VMA_W | VMA_X;
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0){
       printf("exec: loadseg failed\n");
       goto bad;
@@ -97,10 +97,12 @@ exec(char *path, char **argv)
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
   p->stack_vma = add_memory_area(p, USTACK_BOTTOM, USTACK_TOP);
+  p->stack_vma->vma_flags = VMA_R | VMA_W;
   sz = USTACK_TOP;
   sp = sz;
   stackbase = sp - PGSIZE;
   p->heap_vma =  add_memory_area(p, sz, sz); //heap
+  p->heap_vma->vma_flags = VMA_R | VMA_W; 
   
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
