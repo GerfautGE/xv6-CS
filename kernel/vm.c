@@ -379,6 +379,19 @@ int load_from_file(char* file,
 int do_allocate(pagetable_t pagetable, struct proc* p, uint64 addr, uint64 scause){
   pte_t* ad = walk(pagetable, addr, 0);
   struct vma* mem_area = get_memory_area(p, addr);
+  switch (scause)
+  {
+  case CAUSE_R:
+    if ((mem_area->vma_flags & VMA_R) == 0) return EBADPERM;
+    break;
+  case CAUSE_W:
+    if ((mem_area->vma_flags & VMA_W) == 0) return EBADPERM;
+    break;
+  case CAUSE_X:
+    if ((mem_area->vma_flags & VMA_X) == 0) return EBADPERM;
+    break;
+  }
+
   if(!mem_area){
     return ENOVMA;
   }
@@ -389,7 +402,11 @@ int do_allocate(pagetable_t pagetable, struct proc* p, uint64 addr, uint64 scaus
         {
             return ENOMEM;
         }
-        if (mappages(pagetable, addr, PGSIZE, pa, PTE_W | PTE_X | PTE_R | PTE_U) != 0)
+        int flags = PTE_U;
+        flags |= (mem_area->vma_flags & VMA_R) != 0 ? PTE_R : 0;
+        flags |= (mem_area->vma_flags & VMA_W) != 0 ? PTE_W : 0;
+        flags |= (mem_area->vma_flags & VMA_X) != 0 ? PTE_X : 0;
+        if (mappages(pagetable, addr, PGSIZE, pa, flags) != 0)
         {
             kfree((void*)pa);
             return EMAPFAILED;
