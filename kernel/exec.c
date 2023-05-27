@@ -7,8 +7,6 @@
 #include "defs.h"
 #include "elf.h"
 
-static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uint sz);
-
 
 
 int
@@ -81,11 +79,11 @@ exec(char *path, char **argv)
       printf("exec: vaddr not page aligned\n");
       goto bad;
     }
-    add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz))->vma_flags = VMA_R | VMA_W | VMA_X;
-    if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0){
-      printf("exec: loadseg failed\n");
-      goto bad;
-    }
+    struct vma* vma = add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz));
+    vma->vma_flags = VMA_R | VMA_W | VMA_X;
+    vma->file = path;
+    vma->file_offset = ph.off;
+    vma->file_nbytes = ph.filesz;
   }
   iunlockput(ip);
   end_op(ROOTDEV);
@@ -95,12 +93,11 @@ exec(char *path, char **argv)
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
-  sz = PGROUNDUP(sz);
-  p->stack_vma = add_memory_area(p, USTACK_BOTTOM, USTACK_TOP);
+  sz = PGROUNDUP(max_addr_in_memory_areas(p));
+  sp = USTACK_TOP;
+  stackbase = USTACK_BOTTOM;
+  p->stack_vma = add_memory_area(p, stackbase, sp);
   p->stack_vma->vma_flags = VMA_R | VMA_W;
-  sz = USTACK_TOP;
-  sp = sz;
-  stackbase = sp - PGSIZE;
   p->heap_vma =  add_memory_area(p, sz, sz); //heap
   p->heap_vma->vma_flags = VMA_R | VMA_W; 
   
@@ -172,32 +169,4 @@ exec(char *path, char **argv)
   p->heap_vma = heap_vma;
   release(&p->vma_lock);
   return -1;
-}
-
-// Load a program segment into pagetable at virtual address va.
-// va must be page-aligned
-// and the pages from va to va+sz must already be mapped.
-// Returns 0 on success, -1 on failure.
-static int
-loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz)
-{
-  uint i, n;
-  uint64 pa;
-
-  if((va % PGSIZE) != 0)
-    panic("loadseg: va must be page aligned");
-
-  for(i = 0; i < sz; i += PGSIZE){
-    pa = walkaddr(pagetable, va + i);
-    if(pa == 0)
-      panic("loadseg: address should exist");
-    if(sz - i < PGSIZE)
-      n = sz - i;
-    else
-      n = PGSIZE;
-    if(readi(ip, 0, (uint64)pa, offset+i, n) != n)
-      return -1;
-  }
-  
-  return 0;
 }
