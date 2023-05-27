@@ -378,9 +378,22 @@ int load_from_file(char* file,
 
 int do_allocate(pagetable_t pagetable, struct proc* p, uint64 addr){
   pte_t* ad = walk(pagetable, addr, 0);
+  struct vma* mem_area = get_memory_area(p, addr);
+  if(!mem_area){
+    return ENOVMA;
+  }
   if (!ad || (PTE_FLAGS(*ad) & PTE_V) == 0)
   {
-    return ENOMEM;
+    uint64 pa = (uint64) kalloc();
+    if (!pa)
+        {
+            return ENOMEM;
+        }
+        if (mappages(pagetable, addr, PGSIZE, pa, PTE_W | PTE_X | PTE_R | PTE_U) != 0)
+        {
+            kfree((void*)pa);
+            return EMAPFAILED;
+        }
   }
   if ((PTE_FLAGS(*ad) & PTE_U) == 0)
   {
