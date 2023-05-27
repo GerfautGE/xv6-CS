@@ -100,8 +100,6 @@ exec(char *path, char **argv)
   sz = USTACK_TOP;
   sp = sz;
   stackbase = sp - PGSIZE;
-
-  p->stack_vma =  add_memory_area(p, stackbase, sz); //stack
   p->heap_vma =  add_memory_area(p, sz, sz); //heap
   
   // Push argument strings, prepare rest of stack in ustack.
