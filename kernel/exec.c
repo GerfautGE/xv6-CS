@@ -76,7 +76,7 @@ exec(char *path, char **argv)
       goto bad;
     }
     struct vma* vma = add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz));
-    vma->vma_flags = VMA_R | VMA_W | VMA_X;
+    vma->vma_flags = (ph.flags & ELF_PROG_FLAG_READ ? VMA_R : 0) | (ph.flags & ELF_PROG_FLAG_WRITE ? VMA_W : 0) | (ph.flags & ELF_PROG_FLAG_EXEC ? VMA_X : 0);
     vma->file = strdup(path);
     vma->file_offset = ph.off;
     vma->file_nbytes = ph.filesz;
