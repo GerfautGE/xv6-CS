@@ -96,11 +96,8 @@ exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
-  if((sz = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0){
-    printf("exec: uvmalloc failed for the stack\n");
-    goto bad;
-  }
-  uvmclear(pagetable, sz-2*PGSIZE);
+  p->stack_vma = add_memory_area(p, USTACK_BOTTOM, USTACK_TOP);
+  sz = USTACK_TOP;
   sp = sz;
   stackbase = sp - PGSIZE;
 
