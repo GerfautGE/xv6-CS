@@ -403,7 +403,20 @@ int do_allocate(pagetable_t pagetable, struct proc* p, uint64 addr){
 }
 
 int do_allocate_range(pagetable_t pagetable, struct proc* p, uint64 addr, uint64 len){
-  return 0;
+    uint64 low  = PGROUNDDOWN(addr);
+    uint64 high = PGROUNDUP(addr + len);
+    acquire(&p->vma_lock);
+    for (uint64 i = low; i < high; i += PGSIZE)
+    {
+        int err = do_allocate(pagetable, p, i);
+        if (err)
+        {
+            release(&p->vma_lock);
+            return err;
+        }
+    }
+    release(&p->vma_lock);
+    return 0;
 }
 
 // Copy from kernel to user.
