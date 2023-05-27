@@ -29,7 +29,7 @@ exec(char *path, char **argv)
   struct vma* memory_areas = p->memory_areas;
 
   begin_op(ROOTDEV);
-
+  int max_addr = max_addr_in_memory_areas(p);
   if((ip = namei(path)) == 0){
     end_op(ROOTDEV);
     return -1;
@@ -92,7 +92,6 @@ exec(char *path, char **argv)
   ip = 0;
 
   p = myproc();
-  uint64 oldsz = p->sz;
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
@@ -157,16 +156,15 @@ exec(char *path, char **argv)
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
-  p->sz = sz;
   p->tf->epc = elf.entry;  // initial program counter = main
   p->tf->sp = sp; // initial stack pointer
-  proc_freepagetable(oldpagetable, oldsz);
-
+  proc_freepagetable(oldpagetable, max_addr);
+  free_vma(memory_areas);
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
   if(pagetable)
-    proc_freepagetable(pagetable, sz);
+    proc_freepagetable(pagetable, max_addr);
   if(ip){
     iunlockput(ip);
     end_op(ROOTDEV);

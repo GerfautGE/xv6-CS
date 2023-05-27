@@ -12,7 +12,8 @@ int
 fetchaddr(uint64 addr, uint64 *ip)
 {
   struct proc *p = myproc();
-  if(addr >= p->sz || addr+sizeof(uint64) > p->sz)
+  uint64 sz = max_addr_in_memory_areas(p);
+  if(addr >= sz || addr+sizeof(uint64) > sz)
     return -1;
   if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
     return -1;

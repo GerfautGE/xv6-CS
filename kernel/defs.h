@@ -116,6 +116,8 @@ void            procdump(void);
 void            priodump(void);
 void            proc_vmprint(struct proc* p);
 void            proc_vmprint_by_pid(int pid);
+uint64             max_addr_in_memory_areas(struct proc *);
+
 // swtch.S
 void            swtch(struct context*, struct context*);
 

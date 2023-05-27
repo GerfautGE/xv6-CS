@@ -394,6 +394,7 @@ int do_allocate(pagetable_t pagetable, struct proc* p, uint64 addr){
             kfree((void*)pa);
             return EMAPFAILED;
         }
+        return 0;
   }
   if ((PTE_FLAGS(*ad) & PTE_U) == 0)
   {
