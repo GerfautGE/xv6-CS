@@ -411,6 +411,24 @@ int do_allocate(pagetable_t pagetable, struct proc* p, uint64 addr, uint64 scaus
             kfree((void*)pa);
             return EMAPFAILED;
         }
+        if (mem_area->file) {
+          uint64 file_start_offset = PGROUNDDOWN(addr - mem_area->va_begin) + mem_area->file_offset;
+          if (file_start_offset > mem_area->file_offset + mem_area->file_nbytes){
+            return 0;
+          }
+          uint64 nbytes = mem_area->file_nbytes - PGROUNDDOWN(addr - mem_area->va_begin) > PGSIZE ? PGSIZE : mem_area->file_nbytes - PGROUNDDOWN(addr - mem_area->va_begin);
+          release(&p->vma_lock);
+          int res = load_from_file(mem_area->file, file_start_offset, pa, nbytes);
+          acquire(&p->vma_lock);
+          if (res != 0){
+            kfree((char*) pa);
+            return ENOFILE;
+          }
+        }
+        // Le seul moment où les VMAs peuvent être modifiées (i.e. supprimées) sont
+        // dans freeproc, qui lui même n'est appelé que dans wait() d'un parent du
+        // processus courant, seulement si nous sommes dans l'état ZOMBIE. (ce qui
+        // n'est pas le cas)
         return 0;
   }
   if ((PTE_FLAGS(*ad) & PTE_U) == 0)

@@ -77,7 +77,7 @@ exec(char *path, char **argv)
     }
     struct vma* vma = add_memory_area(p, PGROUNDUP(ph.vaddr), PGROUNDUP(ph.vaddr + ph.memsz));
     vma->vma_flags = VMA_R | VMA_W | VMA_X;
-    vma->file = path;
+    vma->file = strdup(path);
     vma->file_offset = ph.off;
     vma->file_nbytes = ph.filesz;
   }
