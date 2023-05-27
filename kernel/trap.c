@@ -100,7 +100,7 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if (scause == 0xf || scause == 0xd) {
+  } else if (scause == 0xf || scause == 0xd || scause == 0xc) {
     handle_page_fault(p, scause, r_stval(), r_sepc());
   } else if((which_dev = devintr()) != 0){
     // ok
